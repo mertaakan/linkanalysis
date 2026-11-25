@@ -1,151 +1,178 @@
-import os
+"""PageRank ve HITS deneylerini çalıştırır ve grafikleri report/figures/ içine kaydeder."""
+
+from pathlib import Path
 import numpy as np
 import networkx as nx
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from src.graph import WebGraph
 from src.pagerank import PageRank
 from src.hits import HITS
 
-OUT_DIR = "report/figures"
+FIG_DIR = Path("report/figures")
 
 
 def run_alpha_experiment():
-    g = WebGraph.normal()
+    """alpha = 0.50, 0.85, 0.99 için yakınsama hızını karşılaştırır."""
+    graph = WebGraph.by_name("normal")
     alphas = [0.50, 0.85, 0.99]
 
-    plt.figure(figsize=(8, 4.8))
-    print("\n--- Alpha Yakinsama Deneyi (Normal Graf) ---")
-    for a in alphas:
-        pr = PageRank(alpha=a, tol=1e-8, max_iter=3000).fit(g)
-        print(f"alpha={a:.2f} -> iterasyon: {pr.iterations}, skorlar: {np.round(pr.scores, 4)}")
-        plt.plot(range(1, len(pr.history) + 1), pr.history, label=f"alpha = {a:.2f} ({pr.iterations} iter)")
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    for alpha in alphas:
+        pr = PageRank(alpha=alpha, tol=1e-8, max_iter=1000).fit(graph)
+        ax.plot(
+            range(1, len(pr.history) + 1),
+            pr.history,
+            label=f"α = {alpha:.2f} ({pr.iterations} iterasyon)",
+        )
+        print(f"Alpha={alpha:.2f} | İterasyon: {pr.iterations} | Toplam: {pr.scores.sum():.4f}")
 
-    plt.yscale("log")
-    plt.xlabel("Iterasyon Sayisi")
-    plt.ylabel("L1 Norm Farki (log olcek)")
-    plt.title("Sonumleme Faktorunun (alpha) Yakinsama Hizina Etkisi")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    ax.set_yscale("log")
+    ax.set_title("Sönümleme Faktörüne (α) Göre PageRank Yakınsama Hızı")
+    ax.set_xlabel("İterasyon")
+    ax.set_ylabel("L1 Farkı (log ölçek)")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(OUT_DIR, "alpha_convergence.png"), dpi=150)
-    plt.close()
+    fig.savefig(FIG_DIR / "alpha_convergence.png", dpi=150)
+    plt.close(fig)
 
 
 def run_spider_trap_experiment():
-    g = WebGraph.spider_trap()
-    pr_raw = PageRank(alpha=0.85, max_iter=300).fit(g, teleportation=False)
-    pr_fix = PageRank(alpha=0.85, max_iter=300).fit(g, teleportation=True)
+    """Spider Trap grafında teleportation açık/kapalı durumunu karşılaştırır."""
+    graph = WebGraph.by_name("spider_trap")
+    pr_no_tp = PageRank(alpha=0.85, tol=1e-8, max_iter=300).fit(graph, teleportation=False)
+    pr_tp = PageRank(alpha=0.85, tol=1e-8, max_iter=300).fit(graph, teleportation=True)
 
-    print("\n--- Spider Trap Deneyi (Dugum 4 ve 5 Tuzak) ---")
-    print("Teleportation YOK :", np.round(pr_raw.scores, 4), "| Toplam:", round(pr_raw.scores.sum(), 4))
-    print("Teleportation VAR :", np.round(pr_fix.scores, 4), "| Toplam:", round(pr_fix.scores.sum(), 4))
+    print("\n--- Spider Trap Deneyi ---")
+    print(f"Teleportation YOK : {np.round(pr_no_tp.scores, 4)} | Toplam: {pr_no_tp.scores.sum():.1f}")
+    print(f"Teleportation VAR : {np.round(pr_tp.scores, 4)} | Toplam: {pr_tp.scores.sum():.1f}")
 
-    x = np.arange(g.n)
+    x = np.arange(graph.n)
     w = 0.35
-    plt.figure(figsize=(8, 4.5))
-    plt.bar(x - w / 2, pr_raw.scores, width=w, label="Teleportation Yok (alpha=1.0)", color="#d9534f")
-    plt.bar(x + w / 2, pr_fix.scores, width=w, label="Teleportation Var (alpha=0.85)", color="#337ab7")
-    plt.xticks(x, [f"D{i}" + (" (Tuzak)" if i in (4, 5) else "") for i in range(g.n)])
-    plt.ylabel("PageRank Skoru")
-    plt.title("Spider Trap Etkisi ve Teleportation Cozumu")
-    plt.ylim(0, 0.6)
-    plt.grid(axis="y", alpha=0.3)
-    plt.legend()
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    ax.bar(x - w / 2, pr_no_tp.scores, width=w, label="Teleportation YOK", color="#d9534f")
+    ax.bar(x + w / 2, pr_tp.scores, width=w, label="Teleportation VAR (α=0.85)", color="#4c8bf5")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"D{i}" for i in range(graph.n)])
+    ax.set_ylabel("PageRank Skoru")
+    ax.set_title("Spider Trap Deneyi: Teleportation Etkisi")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(OUT_DIR, "spider_trap.png"), dpi=150)
-    plt.close()
+    fig.savefig(FIG_DIR / "spider_trap.png", dpi=150)
+    plt.close(fig)
 
 
 def run_dead_end_experiment():
-    g = WebGraph.dead_end()
-    pr_raw = PageRank(alpha=0.85, max_iter=100).fit(g, teleportation=False, handle_dead_ends=False)
-    pr_fix = PageRank(alpha=0.85, max_iter=100).fit(g, teleportation=True, handle_dead_ends=True)
+    """Dead End grafında skor sızıntısını ve düzeltme etkisini gösterir."""
+    graph = WebGraph.by_name("dead_end")
+    n = graph.n
+    A = graph.A.astype(float)
+    out_deg = A.sum(axis=1)
 
-    print("\n--- Dead End Deneyi (Dugum 5 Olu Yol) ---")
-    print("Cozum YOK :", np.round(pr_raw.scores, 4), "| Toplam:", round(pr_raw.scores.sum(), 6))
-    print("Cozum VAR :", np.round(pr_fix.scores, 4), "| Toplam:", round(pr_fix.scores.sum(), 4))
+    M_raw = np.zeros((n, n), dtype=float)
+    M_fixed = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        if out_deg[i] > 0:
+            M_raw[:, i] = A[i, :] / out_deg[i]
+            M_fixed[:, i] = A[i, :] / out_deg[i]
+        else:
+            M_fixed[:, i] = 1.0 / n
 
-    # Iterasyonlar boyunca toplam skorun nasil sizdigini hesapla
-    steps = [1, 2, 5, 10, 15, 20, 30, 50]
-    raw_sums, fix_sums = [], []
-    for k in steps:
-        r_raw = PageRank(alpha=0.85, tol=0, max_iter=k).fit(g, teleportation=False, handle_dead_ends=False)
-        r_fix = PageRank(alpha=0.85, tol=0, max_iter=k).fit(g, teleportation=True, handle_dead_ends=True)
-        raw_sums.append(r_raw.scores.sum())
-        fix_sums.append(r_fix.scores.sum())
+    r_raw = np.ones(n) / n
+    r_fixed = np.ones(n) / n
+    sums_raw, sums_fixed = [], []
+    for _ in range(40):
+        r_raw = M_raw @ r_raw
+        r_fixed = 0.85 * (M_fixed @ r_fixed) + 0.15 / n
+        sums_raw.append(r_raw.sum())
+        sums_fixed.append(r_fixed.sum())
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+    pr_no_fix = PageRank(alpha=0.85, tol=1e-8, max_iter=300).fit(
+        graph, teleportation=False, handle_dead_ends=False
+    )
+    pr_fix = PageRank(alpha=0.85, tol=1e-8, max_iter=300).fit(
+        graph, teleportation=True, handle_dead_ends=True
+    )
 
-    axes[0].plot(steps, raw_sums, marker="o", label="Cozumsuz (Skor Sizintisi)", color="#d9534f")
-    axes[0].plot(steps, fix_sums, marker="s", label="Teleportation + Dead End Cozumu", color="#5cb85c")
-    axes[0].set_xlabel("Iterasyon")
-    axes[0].set_ylabel("Toplam PageRank Skoru")
-    axes[0].set_title("Dead End Skor Sizintisi")
-    axes[0].set_ylim(-0.05, 1.1)
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
+    print("\n--- Dead End Deneyi (Düğüm 5 Ölü Yol) ---")
+    print(f"Çözüm YOK : {np.round(pr_no_fix.scores, 4)} | Toplam: {pr_no_fix.scores.sum():.1e}")
+    print(f"Çözüm VAR : {np.round(pr_fix.scores, 4)} | Toplam: {pr_fix.scores.sum():.1f}")
 
-    x = np.arange(g.n)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2))
+    ax1.plot(range(1, 41), sums_raw, label="Çözümsüz (Skor Sızıntısı)", color="#d9534f")
+    ax1.plot(range(1, 41), sums_fixed, label="Düzeltilmiş (Toplam = 1.0)", color="#4c8bf5")
+    ax1.set_title("İterasyonlara Göre Toplam PageRank Skoru")
+    ax1.set_xlabel("İterasyon")
+    ax1.set_ylabel("Toplam Skor")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+
+    x = np.arange(n)
     w = 0.35
-    axes[1].bar(x - w / 2, pr_raw.scores, width=w, label="Cozumsuz", color="#d9534f")
-    axes[1].bar(x + w / 2, pr_fix.scores, width=w, label="Cozumlu (alpha=0.85)", color="#5cb85c")
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels([f"D{i}" + (" (Olu)" if i == 5 else "") for i in range(g.n)])
-    axes[1].set_ylabel("PageRank Skoru")
-    axes[1].set_title("Dugum Bazli Final Skorlari")
-    axes[1].grid(axis="y", alpha=0.3)
-    axes[1].legend()
+    ax2.bar(x - w / 2, pr_no_fix.scores, width=w, label="Çözümsüz", color="#d9534f")
+    ax2.bar(x + w / 2, pr_fix.scores, width=w, label="Çözümlü", color="#4c8bf5")
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f"D{i}" for i in range(n)])
+    ax2.set_ylabel("PageRank Skoru")
+    ax2.set_title("Dead End Düğüm Skorları (çözümsüzde tüm skorlar ≈ 0)")
+    ax2.grid(axis="y", alpha=0.3)
+    ax2.legend()
 
     plt.tight_layout()
-    plt.savefig(os.path.join(OUT_DIR, "dead_end.png"), dpi=150)
-    plt.close()
+    fig.savefig(FIG_DIR / "dead_end.png", dpi=150)
+    plt.close(fig)
 
 
 def run_hits_and_verification():
-    g = WebGraph.normal()
-    pr = PageRank(alpha=0.85).fit(g)
-    hits = HITS().fit(g)
+    """HITS skorlarını hesaplar ve NetworkX sonuçlarıyla karşılaştırır."""
+    graph = WebGraph.by_name("normal")
+    pr = PageRank(alpha=0.85, tol=1e-10, max_iter=1000).fit(graph)
+    hits = HITS(tol=1e-10, max_iter=1000).fit(graph)
 
-    nx_g = g.to_networkx()
-    nx_pr = nx.pagerank(nx_g, alpha=0.85, tol=1e-10)
-    nx_pr_vec = np.array([nx_pr[i] for i in range(g.n)])
+    G = graph.to_networkx()
+    nx_pr = nx.pagerank(G, alpha=0.85, tol=1e-12)
+    nx_h, nx_a = nx.hits(G, max_iter=1000, tol=1e-12, normalized=True)
 
-    nx_h, nx_a = nx.hits(nx_g, tol=1e-10, normalized=True)
-    nx_h_vec = np.array([nx_h[i] for i in range(g.n)])
-    nx_a_vec = np.array([nx_a[i] for i in range(g.n)])
+    nx_pr_vec = np.array([nx_pr[i] for i in range(graph.n)])
+    nx_h_vec = np.array([nx_h[i] for i in range(graph.n)])
+    nx_a_vec = np.array([nx_a[i] for i in range(graph.n)])
 
     h_l1 = hits.hubs / hits.hubs.sum()
     a_l1 = hits.authorities / hits.authorities.sum()
 
-    print("\n--- HITS ve NetworkX Dogrulama (Normal Graf) ---")
-    print("HITS Hub (L2) :", np.round(hits.hubs, 4))
-    print("HITS Auth (L2):", np.round(hits.authorities, 4))
-    print(f"PageRank vs NetworkX max fark : {np.max(np.abs(pr.scores - nx_pr_vec)):.2e}")
-    print(f"HITS Hub vs NetworkX max fark : {np.max(np.abs(h_l1 - nx_h_vec)):.2e}")
-    print(f"HITS Auth vs NetworkX max fark: {np.max(np.abs(a_l1 - nx_a_vec)):.2e}")
+    print("\n--- HITS ve NetworkX Doğrulama (Normal Graf) ---")
+    print(f"HITS Hub (L2)  : {np.round(hits.hubs, 4)}")
+    print(f"HITS Auth (L2) : {np.round(hits.authorities, 4)}")
+    print(f"PageRank vs NetworkX max fark  : {np.max(np.abs(pr.scores - nx_pr_vec)):.2e}")
+    print(f"HITS Hub vs NetworkX max fark  : {np.max(np.abs(h_l1 - nx_h_vec)):.2e}")
+    print(f"HITS Auth vs NetworkX max fark : {np.max(np.abs(a_l1 - nx_a_vec)):.2e}")
 
-    x = np.arange(g.n)
+    x = np.arange(graph.n)
     w = 0.35
-    plt.figure(figsize=(8, 4.5))
-    plt.bar(x - w / 2, hits.hubs, width=w, label="Hub Skoru (L2)", color="#f0ad4e")
-    plt.bar(x + w / 2, hits.authorities, width=w, label="Authority Skoru (L2)", color="#5bc0de")
-    plt.xticks(x, [f"D{i}" for i in range(g.n)])
-    plt.ylabel("Birim Norm Skoru")
-    plt.title("Normal Graf Uzerinde HITS Hub ve Authority Skorlari")
-    plt.grid(axis="y", alpha=0.3)
-    plt.legend()
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    ax.bar(x - w / 2, hits.hubs, width=w, label="Hub (L2)", color="#f0ad4e")
+    ax.bar(x + w / 2, hits.authorities, width=w, label="Authority (L2)", color="#5bc0de")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"D{i}" for i in range(graph.n)])
+    ax.set_ylabel("Skor (L2 Birim Norm)")
+    ax.set_title("Normal Graf: HITS Hub ve Authority Skorları")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(OUT_DIR, "hits_scores.png"), dpi=150)
-    plt.close()
+    fig.savefig(FIG_DIR / "hits_scores.png", dpi=150)
+    plt.close(fig)
 
 
-if __name__ == "__main__":
-    os.makedirs(OUT_DIR, exist_ok=True)
+def main():
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
     run_alpha_experiment()
     run_spider_trap_experiment()
     run_dead_end_experiment()
     run_hits_and_verification()
-    print(f"\nGrafikler kaydedildi: {OUT_DIR}/")
+    print(f"\nGrafikler kaydedildi: {FIG_DIR}/")
+
+
+if __name__ == "__main__":
+    main()

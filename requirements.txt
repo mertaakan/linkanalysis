@@ -4,3 +4,4 @@ networkx
 streamlit
 pytest
 scipy
+pandas
