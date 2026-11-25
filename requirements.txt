@@ -3,3 +3,4 @@ matplotlib
 networkx
 streamlit
 pytest
+scipy
