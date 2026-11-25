@@ -27,12 +27,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 ## Kullanim
-
+```
 1. Deneyleri ve grafikleri calistirmak icin:
    python -m src.experiments
-
+```
+```
 2. Birim testlerini calistirmak icin:
    pytest -v
-
+```
+```
 3. Streamlit simulatorunu baslatmak icin:
    streamlit run app.py
+```
