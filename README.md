@@ -3,7 +3,7 @@
 Yonlu web graflari uzerinde **PageRank** ve **HITS** (Hub ve Authority) algoritmalarinin sifirdan (`NumPy` ile) uygulanmasi, sonumleme faktoru (alpha), Spider Trap ve Dead End senaryolarinin deneysel analizi, birim testleri ve interaktif **Streamlit** simulator arayuzunu iceren calismadir.
 
 ## Proje Yapisi
-
+```
 linkanalysis/
 ├── src/
 │   ├── graph.py           # Sentetik web grafi ureticileri ve matris yardimcilari
@@ -18,14 +18,14 @@ linkanalysis/
 ├── app.py                 # Interaktif Streamlit link analizi simulatoru
 ├── pytest.ini             # pytest yol ayari
 └── requirements.txt
-
+```
 ## Kurulum
-
+```
 cd ~/Desktop/linkanalysis
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
+```
 ## Kullanim
 
 1. Deneyleri ve grafikleri calistirmak icin:
